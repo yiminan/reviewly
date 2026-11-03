@@ -1,10 +1,13 @@
-import { readRepoPrs } from "@/lib/prs-db";
 import { Context, Effect, Layer, Schema } from "effect";
-import { Tauri } from "../Tauri";
-import { hasBackend } from "../Tauri";
+
+import { readRepoPrs } from "@/lib/prs-db";
+import { withReviewlySignature } from "@/lib/reviewly-signature";
+
 import { TauriError } from "../errors";
 import type { AppError } from "../errors";
 import * as S from "../schema";
+import { hasBackend, Tauri } from "../Tauri";
+import { PrefsService } from "./Prefs";
 
 type Fx<A> = Effect.Effect<A, AppError>;
 
@@ -155,8 +158,14 @@ export const GitHubLive = Layer.effect(
   GitHub,
   Effect.gen(function* () {
     const t = yield* Tauri;
+    const prefs = yield* PrefsService;
     const pr = ({ owner, repo, number }: PrRef) => ({ owner, repo, number });
     const unit = Effect.asVoid;
+    // Read the preference when the effect runs, including retries and queued posts.
+    const signature = Effect.map(
+      prefs.get,
+      (p) => (body: string) => withReviewlySignature(body, p.includeReviewlySignature),
+    );
 
     return {
       dashboard: (repoQualifier) => t.invoke("gh_dashboard", { repoQualifier }, S.Dashboard),
@@ -173,33 +182,42 @@ export const GitHubLive = Layer.effect(
       commits: (ref) => t.invoke("gh_list_commits", pr(ref), Schema.Array(S.Commit)),
       checks: (owner, repo, sha) => t.invoke("gh_list_checks", { owner, repo, sha }, S.CheckRuns),
       submitReview: (ref, input) =>
-        t.invoke(
-          "gh_submit_review",
-          {
-            ...pr(ref),
-            body: input.body || null,
-            event: input.event,
-            comments: input.comments,
-            commitId: input.commitId ?? null,
-          },
-          S.Unit,
+        Effect.flatMap(signature, (sign) =>
+          t.invoke(
+            "gh_submit_review",
+            {
+              ...pr(ref),
+              body: sign(input.body) || null,
+              event: input.event,
+              comments: input.comments.map((comment) => ({ ...comment, body: sign(comment.body) })),
+              commitId: input.commitId ?? null,
+            },
+            S.Unit,
+          ),
         ),
-      comment: (ref, body) => t.invoke("gh_create_issue_comment", { ...pr(ref), body }, S.Unit),
+      comment: (ref, body) =>
+        Effect.flatMap(signature, (sign) =>
+          t.invoke("gh_create_issue_comment", { ...pr(ref), body: sign(body) }, S.Unit),
+        ),
       createReviewComment: (ref, i) =>
-        t.invoke(
-          "gh_create_review_comment",
-          {
-            ...pr(ref),
-            commitId: i.commitId,
-            path: i.path,
-            line: i.line,
-            side: i.side,
-            body: i.body,
-          },
-          S.Unit,
+        Effect.flatMap(signature, (sign) =>
+          t.invoke(
+            "gh_create_review_comment",
+            {
+              ...pr(ref),
+              commitId: i.commitId,
+              path: i.path,
+              line: i.line,
+              side: i.side,
+              body: sign(i.body),
+            },
+            S.Unit,
+          ),
         ),
       reply: (ref, commentId, body) =>
-        t.invoke("gh_reply_review_comment", { ...pr(ref), commentId, body }, S.Unit),
+        Effect.flatMap(signature, (sign) =>
+          t.invoke("gh_reply_review_comment", { ...pr(ref), commentId, body: sign(body) }, S.Unit),
+        ),
       resolveThread: (threadNodeId, resolve) =>
         t.invoke("gh_resolve_thread", { threadNodeId, resolve }, S.Unit).pipe(Effect.asVoid),
       notifications: (all) =>
@@ -285,13 +303,15 @@ export const GitHubLive = Layer.effect(
           )
           .pipe(unit),
       editComment: (kind, owner, repo, commentId, body) =>
-        t
-          .invoke(
-            kind === "issue" ? "gh_edit_issue_comment" : "gh_edit_review_comment",
-            { owner, repo, commentId, body },
-            S.Unit,
-          )
-          .pipe(unit),
+        Effect.flatMap(signature, (sign) =>
+          t
+            .invoke(
+              kind === "issue" ? "gh_edit_issue_comment" : "gh_edit_review_comment",
+              { owner, repo, commentId, body: sign(body) },
+              S.Unit,
+            )
+            .pipe(unit),
+        ),
       deleteComment: (kind, owner, repo, commentId) =>
         t
           .invoke(

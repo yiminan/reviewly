@@ -14,22 +14,6 @@ use crate::state::AppState;
 pub const API: ApiBase = ApiBase;
 pub const ACCEPT: &str = "application/vnd.github+json";
 pub const API_VERSION: &str = "2022-11-28";
-const REVIEWLY_SIGNATURE: &str =
-    r#"<sub>Posted by <a href="https://github.com/volnei/reviewly">Reviewly</a></sub>"#;
-
-/// Brand content created through the app without ever stacking the signature
-/// when a comment is edited or retried.
-pub(crate) fn with_reviewly_signature(body: &str) -> String {
-    let body = body.trim_end();
-    if body.contains(REVIEWLY_SIGNATURE) {
-        return body.to_owned();
-    }
-    if body.is_empty() {
-        REVIEWLY_SIGNATURE.to_owned()
-    } else {
-        format!("{body}\n\n{REVIEWLY_SIGNATURE}")
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Viewer {
@@ -628,15 +612,8 @@ pub async fn submit_review(
     input: &SubmitReviewInput,
 ) -> AppResult<Value> {
     let url = format!("{API}/repos/{owner}/{repo}/pulls/{number}/reviews");
-    let mut input = input.clone();
-    input.body = Some(with_reviewly_signature(
-        input.body.as_deref().unwrap_or_default(),
-    ));
-    for comment in &mut input.comments {
-        comment.body = with_reviewly_signature(&comment.body);
-    }
     let res = auth_request(state, token, reqwest::Method::POST, &url)
-        .json(&input)
+        .json(input)
         .send()
         .await?;
     let res = check(res).await?;
@@ -652,7 +629,6 @@ pub async fn create_issue_comment(
     body: &str,
 ) -> AppResult<Value> {
     let url = format!("{API}/repos/{owner}/{repo}/issues/{number}/comments");
-    let body = with_reviewly_signature(body);
     let res = auth_request(state, token, reqwest::Method::POST, &url)
         .json(&serde_json::json!({ "body": body }))
         .send()
@@ -671,7 +647,6 @@ pub async fn create_review_reply(
     body: &str,
 ) -> AppResult<Value> {
     let url = format!("{API}/repos/{owner}/{repo}/pulls/{number}/comments/{comment_id}/replies");
-    let body = with_reviewly_signature(body);
     let res = auth_request(state, token, reqwest::Method::POST, &url)
         .json(&serde_json::json!({ "body": body }))
         .send()
@@ -697,7 +672,6 @@ pub async fn create_review_comment(
     body: &str,
 ) -> AppResult<Value> {
     let url = format!("{API}/repos/{owner}/{repo}/pulls/{number}/comments");
-    let body = with_reviewly_signature(body);
     let res = auth_request(state, token, reqwest::Method::POST, &url)
         .json(&serde_json::json!({
             "body": body,
@@ -966,28 +940,4 @@ pub async fn compare_files(
     let res = check(res).await?;
     let c: Compare = res.json().await?;
     Ok(c.files)
-}
-
-#[cfg(test)]
-mod signature_tests {
-    use super::{with_reviewly_signature, REVIEWLY_SIGNATURE};
-
-    #[test]
-    fn appends_the_reviewly_link_after_content() {
-        assert_eq!(
-            with_reviewly_signature("Looks good."),
-            format!("Looks good.\n\n{REVIEWLY_SIGNATURE}")
-        );
-    }
-
-    #[test]
-    fn signs_an_empty_review_body() {
-        assert_eq!(with_reviewly_signature("  \n"), REVIEWLY_SIGNATURE);
-    }
-
-    #[test]
-    fn never_duplicates_the_signature() {
-        let signed = with_reviewly_signature("Please rename this.");
-        assert_eq!(with_reviewly_signature(&signed), signed);
-    }
 }

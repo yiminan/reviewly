@@ -19,6 +19,7 @@ import { hasBackend, type Tauri, TauriLive } from "./Tauri";
  * and looked at without GitHub — and in the app too, in sample-data mode.
  */
 const TauriLayer = hasBackend() ? TauriLive : TauriFixtures;
+const GitHubLayer = GitHubLive.pipe(Layer.provide(Layer.mergeAll(TauriLayer, PrefsLive)));
 
 const AppLayer = Layer.mergeAll(
   TauriLayer,
@@ -26,15 +27,11 @@ const AppLayer = Layer.mergeAll(
   TriageRules,
   AuthLive.pipe(Layer.provide(TauriLayer)),
   TeamsLive.pipe(Layer.provide(TauriLayer)),
-  GitHubLive.pipe(Layer.provide(TauriLayer)),
+  GitHubLayer,
   GitLive.pipe(Layer.provide(TauriLayer)),
   AppSettingsLive.pipe(Layer.provide(TauriLayer)),
   AiLive.pipe(Layer.provide(Layer.mergeAll(TauriLayer, PrefsLive))),
-  InboxLive.pipe(
-    Layer.provide(
-      Layer.mergeAll(GitHubLive.pipe(Layer.provide(TauriLayer)), PrefsLive, TriageRules),
-    ),
-  ),
+  InboxLive.pipe(Layer.provide(Layer.mergeAll(GitHubLayer, PrefsLive, TriageRules))),
 );
 
 export type AppServices =

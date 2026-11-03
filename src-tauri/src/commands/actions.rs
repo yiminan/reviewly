@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use tauri::State;
 
 use crate::clients::check;
-use crate::clients::github::{auth_request, with_reviewly_signature, Label, UserRef, API};
+use crate::clients::github::{auth_request, Label, UserRef, API};
 use crate::clients::graphql::graphql;
 use crate::creds;
 use crate::error::{AppError, AppResult};
@@ -539,7 +539,6 @@ pub async fn gh_edit_issue_comment(
 ) -> AppResult<Value> {
     let token = creds::require_token()?;
     let url = format!("{API}/repos/{owner}/{repo}/issues/comments/{comment_id}");
-    let body = with_reviewly_signature(&body);
     let res = auth_request(&state, &token, reqwest::Method::PATCH, &url)
         .json(&json!({ "body": body }))
         .send()
@@ -574,7 +573,6 @@ pub async fn gh_edit_review_comment(
 ) -> AppResult<Value> {
     let token = creds::require_token()?;
     let url = format!("{API}/repos/{owner}/{repo}/pulls/comments/{comment_id}");
-    let body = with_reviewly_signature(&body);
     let res = auth_request(&state, &token, reqwest::Method::PATCH, &url)
         .json(&json!({ "body": body }))
         .send()

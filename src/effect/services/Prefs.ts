@@ -1,6 +1,7 @@
+import { Context, Effect, Layer, Schema } from "effect";
+
 import { persistedStore, useStore } from "@/effect/store";
 import { APP_STORE } from "@/lib/edition";
-import { Context, Effect, Layer, Schema } from "effect";
 
 /**
  * Everything the user has decided, in one typed record, persisted on the
@@ -62,6 +63,8 @@ export const Prefs = Schema.Struct({
   }),
   /** Sending a review on a draft PR marks it ready for review. */
   autoReadyOnReview: Schema.Boolean,
+  /** Append the Reviewly attribution when posting comments and reviews. */
+  includeReviewlySignature: Schema.Boolean,
   /** One more step before a review goes up. */
   confirmBeforeSubmit: Schema.Boolean,
   /** The Dock icon, on macOS. */
@@ -125,6 +128,7 @@ const defaultPrefs: Prefs = {
     suggestionAction: "draft",
   },
   autoReadyOnReview: false,
+  includeReviewlySignature: false,
   confirmBeforeSubmit: false,
   appIcon: "white",
   landing: "inbox",

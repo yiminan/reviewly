@@ -423,6 +423,12 @@ export function SettingsScreen() {
                 checked={prefs.autoReadyOnReview}
                 onChange={(v) => set("autoReadyOnReview", v)}
               />
+              <Toggle
+                label="Include Reviewly signature"
+                hint="Add “Posted by Reviewly” to comments and reviews."
+                checked={prefs.includeReviewlySignature}
+                onChange={(v) => set("includeReviewlySignature", v)}
+              />
               <Field label="Files, in this order">
                 <Choice
                   value={prefs.filesOrder}
