@@ -17,6 +17,7 @@ dist-site
 dist-ssr
 *.local
 *.tsbuildinfo
+/Reviewly_*.dmg
 
 # Editor
 .vscode/*

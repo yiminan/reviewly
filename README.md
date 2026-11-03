@@ -186,6 +186,32 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 The public GitHub OAuth client ID is configured in [`src-tauri/.cargo/config.toml`](src-tauri/.cargo/config.toml). Forks can replace it with their own OAuth app with Device Flow enabled.
 
+### Build a macOS DMG
+
+With Bun, Rust stable, and Xcode or its Command Line Tools installed, run this
+command from the project root on macOS:
+
+```sh
+bun run build:dmg
+```
+
+The [build script](scripts/build-dmg.sh) installs locked dependencies, builds the
+app for the current Mac, verifies the DMG, and copies it to the **project root**:
+
+```text
+reviewly/
+└── Reviewly_<version>_<architecture>.dmg
+```
+
+The version comes from `src-tauri/tauri.conf.json`. The architecture is `aarch64`
+on Apple Silicon or `x64` on Intel; for example, `Reviewly_1.1.2_aarch64.dmg`.
+Rebuilding the same version and architecture replaces that file. Generated DMGs
+are ignored by Git. The first build takes longer; later builds reuse the Rust
+compilation cache.
+
+This build uses ad-hoc signing for local use, without updater artifacts or Apple
+notarization. For a signed release, use the [release workflow](.github/workflows/release.yml).
+
 ## Product site
 
 The product site and Reviewly Teams service deploy together on Vercel at [getreviewly.dev](https://getreviewly.dev/). Its source lives in the separate [`volnei/reviewly-teams`](https://github.com/volnei/reviewly-teams) repository.
